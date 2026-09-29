@@ -37,8 +37,8 @@ jobs:
 
       - name: Send reminder
         env:
-          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          BOT_TOKEN: ${{ secrets.UNLYOD_TG_BOT }}
+          CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           DAYS: ${{ steps.check.outputs.days }}
         run: |
