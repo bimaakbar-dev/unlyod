@@ -1,0 +1,80 @@
+name: Weekly Digest
+
+on:
+  schedule:
+    - cron: '0 13 * * 0'
+  workflow_dispatch:
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate App Token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: bimaakbar-dev
+
+      - name: Collect repo stats
+        id: stats
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          REPO="bimaakbar-dev/bimaakbar-dev.github.io"
+          WEEK_AGO=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
+          
+          COMMITS=$(gh api "/repos/$REPO/commits?since=$WEEK_AGO" --jq 'length' 2>/dev/null || echo 0)
+          ISSUES_OPEN=$(gh api "/repos/$REPO/issues?state=open&since=$WEEK_AGO" --jq 'length' 2>/dev/null || echo 0)
+          ISSUES_CLOSED=$(gh api "/repos/$REPO/issues?state=closed&since=$WEEK_AGO" --jq 'length' 2>/dev/null || echo 0)
+          PRS=$(gh api "/repos/$REPO/pulls?state=all&sort=updated" --jq "[.[] | select(.updated_at > \"$WEEK_AGO\")] | length" 2>/dev/null || echo 0)
+          STARS=$(gh api "/repos/$REPO" --jq '.stargazers_count' 2>/dev/null || echo 0)
+          
+          echo "commits=$COMMITS" >> $GITHUB_OUTPUT
+          echo "issues_open=$ISSUES_OPEN" >> $GITHUB_OUTPUT
+          echo "issues_closed=$ISSUES_CLOSED" >> $GITHUB_OUTPUT
+          echo "prs=$PRS" >> $GITHUB_OUTPUT
+          echo "stars=$STARS" >> $GITHUB_OUTPUT
+
+      - name: Send to Telegram
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          MESSAGE="📊 <b>Weekly Report</b>
+          <b>bimaakbar-dev.github.io</b>
+          ────────────────────
+          
+          📝 Commits: ${{ steps.stats.outputs.commits }}
+          🐛 Issues baru: ${{ steps.stats.outputs.issues_open }}
+          ✅ Issues closed: ${{ steps.stats.outputs.issues_closed }}
+          🔀 Pull Requests: ${{ steps.stats.outputs.prs }}
+          ⭐ Stars: ${{ steps.stats.outputs.stars }}"
+          
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${CHAT_ID}" \
+            -d "text=${MESSAGE}" \
+            -d "parse_mode=HTML"
+
+      - name: Send to Discord
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          curl -s -X POST "$WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"📊 Weekly Report\",
+                \"description\": \"**bimaakbar-dev.github.io**\",
+                \"color\": 16738314,
+                \"fields\": [
+                  {\"name\": \"📝 Commits\", \"value\": \"${{ steps.stats.outputs.commits }}\", \"inline\": true},
+                  {\"name\": \"🐛 Issues baru\", \"value\": \"${{ steps.stats.outputs.issues_open }}\", \"inline\": true},
+                  {\"name\": \"✅ Issues closed\", \"value\": \"${{ steps.stats.outputs.issues_closed }}\", \"inline\": true},
+                  {\"name\": \"🔀 PRs\", \"value\": \"${{ steps.stats.outputs.prs }}\", \"inline\": true},
+                  {\"name\": \"⭐ Stars\", \"value\": \"${{ steps.stats.outputs.stars }}\", \"inline\": true}
+                ],
+                \"footer\": {\"text\": \"bimaakbar[bot] · weekly digest\"}
+              }]
+            }"
