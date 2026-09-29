@@ -75,6 +75,6 @@ jobs:
                   {\"name\": \"🔀 PRs\", \"value\": \"${{ steps.stats.outputs.prs }}\", \"inline\": true},
                   {\"name\": \"⭐ Stars\", \"value\": \"${{ steps.stats.outputs.stars }}\", \"inline\": true}
                 ],
-                \"footer\": {\"text\": \"bimaakbar[bot] · weekly digest\"}
+                \"footer\": {\"text\": \"unlyod[bot] · weekly digest\"}
               }]
             }"
