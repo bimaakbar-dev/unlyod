@@ -1,0 +1,81 @@
+name: Post Reminder
+
+on:
+  schedule:
+    - cron: '0 1 * * 1'
+  workflow_dispatch:
+
+jobs:
+  reminder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate App Token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: bimaakbar-dev
+
+      - name: Check last post
+        id: check
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          REPO="bimaakbar-dev/bimaakbar-dev.github.io"
+          LAST=$(gh api "/repos/$REPO/commits?path=src/content&per_page=1" --jq '.[0].commit.author.date' 2>/dev/null || echo "")
+          
+          if [ -z "$LAST" ]; then
+            DAYS=999
+          else
+            NOW=$(date -u +%s)
+            LAST_TS=$(date -u -d "$LAST" +%s)
+            DAYS=$(( (NOW - LAST_TS) / 86400 ))
+          fi
+          
+          echo "days=$DAYS" >> $GITHUB_OUTPUT
+
+      - name: Send reminder
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          DAYS: ${{ steps.check.outputs.days }}
+        run: |
+          if [ "$DAYS" -ge 7 ]; then
+            MSG="⏰ <b>Reminder Post</b>
+          Sudah <b>${DAYS} hari</b> sejak artikel terakhir.
+          
+          Waktunya bikin artikel baru! ✍️"
+          else
+            MSG="✅ <b>Status Blog</b>
+          Artikel terakhir: <b>${DAYS} hari</b> lalu.
+          
+          Masih on-track! 👍"
+          fi
+          
+          # Kirim ke Telegram
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${CHAT_ID}" \
+            -d "text=${MSG}" \
+            -d "parse_mode=HTML"
+          
+          # Kirim ke Discord
+          if [ "$DAYS" -ge 7 ]; then
+            COLOR=15548997
+            TITLE="⏰ Reminder Post"
+          else
+            COLOR=5763719
+            TITLE="✅ Status Blog"
+          fi
+          
+          curl -s -X POST "$DISCORD_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"$TITLE\",
+                \"description\": \"Artikel terakhir: **${DAYS} hari** lalu\",
+                \"color\": $COLOR,
+                \"footer\": {\"text\": \"bimaakbar[bot] · reminder\"}
+              }]
+            }"
