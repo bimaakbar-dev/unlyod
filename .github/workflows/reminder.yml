@@ -76,6 +76,6 @@ jobs:
                 \"title\": \"$TITLE\",
                 \"description\": \"Artikel terakhir: **${DAYS} hari** lalu\",
                 \"color\": $COLOR,
-                \"footer\": {\"text\": \"bimaakbar[bot] · reminder\"}
+                \"footer\": {\"text\": \"unlyod[bot] · reminder\"}
               }]
             }"
